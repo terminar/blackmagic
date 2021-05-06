@@ -46,10 +46,48 @@ This platform is based on platforms/hydrabus.
 ----------------------------
 ```
 
-# How to Build
+## How to Build
+
+Patch the libopencm3 or USB will not work. Instructions/patch below.
 
 ```
 cd blackmagic
 make clean
 make PROBE_HOST=itagfifty
+```
+
+## libopencm3 patch
+
+The VBUS sensing isn't properly working on the iTAG.FIFTY with libopencm3.
+
+There are some issues regarding VBUS sensing:
+- https://github.com/libopencm3/libopencm3-examples/issues/178
+- https://github.com/libopencm3/libopencm3/issues/1119
+- https://github.com/libopencm3/libopencm3/pull/1256
+
+
+A fix is maybe to add 
+```
+OTG_FS_GCCFG |= OTG_GCCFG_NOVBUSSENS | OTG_GCCFG_PWRDWN;
+OTG_FS_GCCFG &= ~(OTG_GCCFG_VBUSBSEN | OTG_GCCFG_VBUSASEN);
+```
+somewhere in the platform.c init code but that's untested.
+Currently a quickfix is to patch libopencm3.
+
+```
+diff --git a/lib/usb/usb_f107.c b/lib/usb/usb_f107.c
+index 52df7172..d36744a9 100644
+--- a/lib/usb/usb_f107.c
++++ b/lib/usb/usb_f107.c
+@@ -67,7 +67,9 @@ static usbd_device *stm32f107_usbd_init(void)
+                OTG_FS_GCCFG |= OTG_GCCFG_VBDEN | OTG_GCCFG_PWRDWN;
+        } else {
+                /* Enable VBUS sensing in device mode and power up the PHY. */
+-               OTG_FS_GCCFG |= OTG_GCCFG_VBUSBSEN | OTG_GCCFG_PWRDWN;
++               // OTG_FS_GCCFG |= OTG_GCCFG_VBUSBSEN | OTG_GCCFG_PWRDWN;
++               // TODO: fixed for ITAG.FIFTY (STM32F405RG)
++               OTG_FS_GCCFG |= OTG_GCCFG_NOVBUSSENS | OTG_GCCFG_PWRDWN;
+        }
+        /* Explicitly enable DP pullup (not all cores do this by default) */
+        OTG_FS_DCTL &= ~OTG_DCTL_SDIS;
 ```
